@@ -14,8 +14,18 @@ function App() {
   return (
     <div className="app">
       <header className="header">
-        <h1>{t.header.title}</h1>
-        <p>{t.header.subtitle}</p>
+        <div className="header-text">
+          <h1>{t.header.title}</h1>
+          <p>{t.header.subtitle}</p>
+        </div>
+        <button
+          className="lang-toggle-btn"
+          onClick={toggleLanguage}
+          aria-label="Toggle language"
+          title={language === 'en' ? 'Switch to Vietnamese' : 'Chuyển sang Tiếng Anh'}
+        >
+          {language === 'en' ? '🇻🇳 Tiếng Việt' : '🇺🇸 English'}
+        </button>
       </header>
 
       <nav className="nav-tabs">
@@ -57,14 +67,6 @@ function App() {
             💌
           </button>
         </p>
-        <button
-          className="lang-toggle-btn"
-          onClick={toggleLanguage}
-          aria-label="Toggle language"
-          title={language === 'en' ? 'Switch to Vietnamese' : 'Chuyển sang Tiếng Anh'}
-        >
-          {language === 'en' ? '🇻🇳 Tiếng Việt' : '🇺🇸 English'}
-        </button>
       </footer>
 
       {showMessage && <HiddenMessage onClose={() => setShowMessage(false)} />}
