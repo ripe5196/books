@@ -1,37 +1,23 @@
 import { useState } from 'react'
+import { useLanguage } from '../context/LanguageContext'
 import '../styles/Timeline.css'
 
+const baseDates = [
+  { id: 1, date: '2018-06-15', emoji: '👀' },
+  { id: 2, date: '2018-07-20', emoji: '☕' },
+  { id: 3, date: '2022-12-24', emoji: '💍' },
+  { id: 4, date: '2024-06-15', emoji: '👰' },
+]
+
 export default function Timeline() {
-  const [events, setEvents] = useState([
-    {
-      id: 1,
-      title: 'First Meeting',
-      date: '2018-06-15',
-      description: 'The day our love story began',
-      emoji: '👀'
-    },
-    {
-      id: 2,
-      title: 'First Date',
-      date: '2018-07-20',
-      description: 'Coffee turned into forever',
-      emoji: '☕'
-    },
-    {
-      id: 3,
-      title: 'The Proposal',
-      date: '2022-12-24',
-      description: 'Will you marry me?',
-      emoji: '💍'
-    },
-    {
-      id: 4,
-      title: 'Wedding Day',
-      date: '2024-06-15',
-      description: 'We said YES to forever',
-      emoji: '👰'
-    }
-  ])
+  const { t } = useLanguage()
+
+  const baseEvents = baseDates.map((base, i) => ({
+    ...base,
+    ...t.timeline.events[i],
+  }))
+
+  const [userEvents, setUserEvents] = useState([])
 
   const [formData, setFormData] = useState({
     title: '',
@@ -39,6 +25,8 @@ export default function Timeline() {
     description: '',
     emoji: '💕'
   })
+
+  const allEvents = [...baseEvents, ...userEvents].sort((a, b) => new Date(a.date) - new Date(b.date))
 
   const handleInputChange = (e) => {
     const { name, value } = e.target
@@ -55,7 +43,7 @@ export default function Timeline() {
         id: Date.now(),
         ...formData
       }
-      setEvents(prev => [...prev, newEvent].sort((a, b) => new Date(a.date) - new Date(b.date)))
+      setUserEvents(prev => [...prev, newEvent])
       setFormData({
         title: '',
         date: '',
@@ -68,14 +56,14 @@ export default function Timeline() {
   return (
     <div className="timeline-container">
       <div className="timeline">
-        {events.map((event) => (
+        {allEvents.map((event) => (
           <div key={event.id} className="timeline-item">
             <div className="timeline-marker">
               <span className="timeline-emoji">{event.emoji}</span>
             </div>
             <div className="timeline-content">
               <h3>{event.title}</h3>
-              <p className="timeline-date">{new Date(event.date).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}</p>
+              <p className="timeline-date">{new Date(event.date).toLocaleDateString(t.timeline.locale, { year: 'numeric', month: 'long', day: 'numeric' })}</p>
               <p className="timeline-description">{event.description}</p>
             </div>
           </div>
@@ -83,22 +71,22 @@ export default function Timeline() {
       </div>
 
       <div className="timeline-form">
-        <h2>Add a New Memory</h2>
+        <h2>{t.timeline.addMemoryTitle}</h2>
         <form onSubmit={handleAddEvent}>
           <div className="form-group">
-            <label htmlFor="title">Event Title</label>
+            <label htmlFor="title">{t.timeline.eventTitleLabel}</label>
             <input
               type="text"
               id="title"
               name="title"
               value={formData.title}
               onChange={handleInputChange}
-              placeholder="e.g., Anniversary Dinner"
+              placeholder={t.timeline.eventTitlePlaceholder}
             />
           </div>
 
           <div className="form-group">
-            <label htmlFor="date">Date</label>
+            <label htmlFor="date">{t.timeline.dateLabel}</label>
             <input
               type="date"
               id="date"
@@ -109,19 +97,19 @@ export default function Timeline() {
           </div>
 
           <div className="form-group">
-            <label htmlFor="description">Description</label>
+            <label htmlFor="description">{t.timeline.descriptionLabel}</label>
             <textarea
               id="description"
               name="description"
               value={formData.description}
               onChange={handleInputChange}
-              placeholder="Tell us about this moment..."
+              placeholder={t.timeline.descriptionPlaceholder}
               rows="3"
             />
           </div>
 
           <div className="form-group">
-            <label htmlFor="emoji">Emoji</label>
+            <label htmlFor="emoji">{t.timeline.emojiLabel}</label>
             <input
               type="text"
               id="emoji"
@@ -133,7 +121,7 @@ export default function Timeline() {
             />
           </div>
 
-          <button type="submit" className="submit-btn">Add Memory ✨</button>
+          <button type="submit" className="submit-btn">{t.timeline.submitBtn}</button>
         </form>
       </div>
     </div>

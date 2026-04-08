@@ -3,17 +3,27 @@ import Book from './components/Book'
 import Timeline from './components/Timeline'
 import Gallery from './components/Gallery'
 import HiddenMessage from './components/HiddenMessage'
+import { useLanguage } from './context/LanguageContext'
 import './App.css'
 
 function App() {
   const [activeTab, setActiveTab] = useState('book')
   const [showMessage, setShowMessage] = useState(false)
+  const { language, toggleLanguage, t } = useLanguage()
 
   return (
     <div className="app">
       <header className="header">
-        <h1>💕 Our Wedding Journey 💕</h1>
-        <p>A story of love, moments, and memories</p>
+        <h1>{t.header.title}</h1>
+        <p>{t.header.subtitle}</p>
+        <button
+          className="lang-toggle-btn"
+          onClick={toggleLanguage}
+          aria-label="Toggle language"
+          title={language === 'en' ? 'Switch to Vietnamese' : 'Chuyển sang Tiếng Anh'}
+        >
+          {language === 'en' ? '🇻🇳 Tiếng Việt' : '🇺🇸 English'}
+        </button>
       </header>
 
       <nav className="nav-tabs">
@@ -21,19 +31,19 @@ function App() {
           className={`tab-button ${activeTab === 'book' ? 'active' : ''}`}
           onClick={() => setActiveTab('book')}
         >
-          📖 Book
+          {t.nav.book}
         </button>
         <button
           className={`tab-button ${activeTab === 'timeline' ? 'active' : ''}`}
           onClick={() => setActiveTab('timeline')}
         >
-          📅 Timeline
+          {t.nav.timeline}
         </button>
         <button
           className={`tab-button ${activeTab === 'gallery' ? 'active' : ''}`}
           onClick={() => setActiveTab('gallery')}
         >
-          🖼️ Gallery
+          {t.nav.gallery}
         </button>
       </nav>
 
@@ -45,12 +55,12 @@ function App() {
 
       <footer className="footer">
         <p>
-          Made with ❤️ to celebrate our love story{' '}
+          {t.footer.madeWith}{' '}
           <button
             className="footer-love-btn"
             onClick={() => setShowMessage(true)}
-            aria-label="A hidden message"
-            title="A hidden message 💌"
+            aria-label={t.footer.hiddenMessageLabel}
+            title={t.footer.hiddenMessageTitle}
           >
             💌
           </button>

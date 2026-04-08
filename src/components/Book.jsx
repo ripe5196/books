@@ -1,64 +1,15 @@
 import { useState } from 'react'
+import { useLanguage } from '../context/LanguageContext'
 import '../styles/Book.css'
 
-const weddingEvents = [
-  {
-    id: 1,
-    title: 'Our Love Story',
-    date: '',
-    description: 'A beautiful journey of love, laughter, and forever together. Turn the pages to relive our most precious memories.',
-    emoji: '💕',
-    type: 'cover',
-    image: 'https://picsum.photos/seed/love-story/480/580'
-  },
-  {
-    id: 2,
-    title: 'First Meeting',
-    date: 'June 15, 2018',
-    description: 'The day our eyes met across the room. A single glance that changed everything forever.',
-    emoji: '👀',
-    image: 'https://picsum.photos/seed/first-meeting/480/580'
-  },
-  {
-    id: 3,
-    title: 'First Date',
-    date: 'July 20, 2018',
-    description: 'Coffee turned into hours of conversation. We talked until the café closed and never wanted it to end.',
-    emoji: '☕',
-    image: 'https://picsum.photos/seed/first-date/480/580'
-  },
-  {
-    id: 4,
-    title: 'The Proposal',
-    date: 'December 24, 2022',
-    description: 'Under the stars on Christmas Eve, with a ring and a question that changed our lives: "Will you marry me?"',
-    emoji: '💍',
-    image: 'https://picsum.photos/seed/proposal/480/580'
-  },
-  {
-    id: 5,
-    title: 'Wedding Day',
-    date: 'June 15, 2024',
-    description: 'The day we said YES to forever. Surrounded by our loved ones, we began our greatest adventure together.',
-    emoji: '👰',
-    image: 'https://picsum.photos/seed/wedding-day/480/580'
-  },
-  {
-    id: 6,
-    title: 'The Ceremony',
-    date: 'June 15, 2024',
-    description: 'An intimate ceremony at the park, with flowers in bloom and hearts full of joy.',
-    emoji: '🌸',
-    image: 'https://picsum.photos/seed/ceremony/480/580'
-  },
-  {
-    id: 7,
-    title: 'The Reception',
-    date: 'June 15, 2024',
-    description: 'Dancing, laughter, and celebration into the evening. A night of pure magic with family and friends.',
-    emoji: '🥂',
-    image: 'https://picsum.photos/seed/reception/480/580'
-  }
+const baseEvents = [
+  { id: 1, emoji: '💕', type: 'cover', image: 'https://picsum.photos/seed/love-story/480/580' },
+  { id: 2, emoji: '👀', image: 'https://picsum.photos/seed/first-meeting/480/580' },
+  { id: 3, emoji: '☕', image: 'https://picsum.photos/seed/first-date/480/580' },
+  { id: 4, emoji: '💍', image: 'https://picsum.photos/seed/proposal/480/580' },
+  { id: 5, emoji: '👰', image: 'https://picsum.photos/seed/wedding-day/480/580' },
+  { id: 6, emoji: '🌸', image: 'https://picsum.photos/seed/ceremony/480/580' },
+  { id: 7, emoji: '🥂', image: 'https://picsum.photos/seed/reception/480/580' },
 ]
 
 function LeftPageContent({ event }) {
@@ -89,6 +40,12 @@ function RightPageContent({ event }) {
 }
 
 export default function Book() {
+  const { t } = useLanguage()
+  const weddingEvents = baseEvents.map((base, i) => ({
+    ...base,
+    ...t.book.events[i],
+  }))
+
   const total = weddingEvents.length
   const [currentIndex, setCurrentIndex] = useState(0)
   const [isAnimating, setIsAnimating] = useState(false)
@@ -161,7 +118,7 @@ export default function Book() {
           disabled={currentIndex === 0 || isAnimating}
           aria-label="Previous page"
         >
-          Back 💖
+          {t.book.back}
         </button>
         <span className="book-page-indicator">
           {currentIndex + 1} / {total}
@@ -172,7 +129,7 @@ export default function Book() {
           disabled={currentIndex === total - 1 || isAnimating}
           aria-label="Next page"
         >
-          Next ✨
+          {t.book.next}
         </button>
       </div>
     </div>
