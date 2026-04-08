@@ -27,7 +27,7 @@ const photos = [
   },
   {
     id: 4,
-    url: 'https://images.unsplash.com/photo-1606216174052-50fdfba2f239?w=500&h=500&fit=crop',
+    url: 'https://images.unsplash.com/photo-1583001931096-959e9a1a6223?w=500&h=500&fit=crop',
     title: 'Wedding Dress',
     caption: 'Finding the perfect dress',
     category: 'Wedding'
@@ -79,6 +79,12 @@ export default function Gallery() {
 
   return (
     <div className="gallery-container">
+      <div className="gallery-header">
+        <h2 className="gallery-title">📸 Our Memories</h2>
+        <p className="gallery-subtitle">Every picture tells our story</p>
+        <div className="gallery-divider" />
+      </div>
+
       <div className="gallery-categories">
         {CATEGORIES.map((cat) => (
           <button
@@ -101,6 +107,7 @@ export default function Gallery() {
             <img src={photo.url} alt={photo.title} />
             <div className="gallery-overlay">
               <h3>{photo.title}</h3>
+              <p className="gallery-overlay-caption">{photo.caption}</p>
               <span className="gallery-category-tag">{photo.category}</span>
             </div>
           </div>
