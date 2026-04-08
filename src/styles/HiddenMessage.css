@@ -25,14 +25,16 @@
   box-shadow:
     0 30px 80px rgba(217, 70, 166, 0.38),
     0 8px 24px rgba(0, 0, 0, 0.2);
-  animation: hmPopIn 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+  animation: hmPopIn 0.6s cubic-bezier(0.34, 1.56, 0.64, 1);
   max-width: 380px;
   width: 90%;
 }
 
 @keyframes hmPopIn {
-  from { transform: scale(0.5); opacity: 0; }
-  to   { transform: scale(1);   opacity: 1; }
+  0%   { transform: translateY(120%) scale(0.7) rotate(-6deg); opacity: 0; }
+  60%  { transform: translateY(-18px) scale(1.04) rotate(2deg); opacity: 1; }
+  80%  { transform: translateY(8px) scale(0.98) rotate(-1deg); }
+  100% { transform: translateY(0) scale(1) rotate(0deg); opacity: 1; }
 }
 
 .hidden-message-envelope {
