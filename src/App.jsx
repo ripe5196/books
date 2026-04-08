@@ -1,10 +1,11 @@
 import { useState } from 'react'
+import Book from './components/Book'
 import Timeline from './components/Timeline'
 import Gallery from './components/Gallery'
 import './App.css'
 
 function App() {
-  const [activeTab, setActiveTab] = useState('timeline')
+  const [activeTab, setActiveTab] = useState('book')
 
   return (
     <div className="app">
@@ -14,6 +15,12 @@ function App() {
       </header>
 
       <nav className="nav-tabs">
+        <button
+          className={`tab-button ${activeTab === 'book' ? 'active' : ''}`}
+          onClick={() => setActiveTab('book')}
+        >
+          📖 Book
+        </button>
         <button
           className={`tab-button ${activeTab === 'timeline' ? 'active' : ''}`}
           onClick={() => setActiveTab('timeline')}
@@ -29,6 +36,7 @@ function App() {
       </nav>
 
       <main className="main-content">
+        {activeTab === 'book' && <Book />}
         {activeTab === 'timeline' && <Timeline />}
         {activeTab === 'gallery' && <Gallery />}
       </main>
