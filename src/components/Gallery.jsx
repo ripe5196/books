@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import '../styles/Gallery.css'
 
-const CATEGORIES = ['All', 'Lives', 'Engagement', 'Wedding', 'School']
+const CATEGORIES = ['Everything ✨', 'Us 💑', 'The Yes 💍', 'Forever 💒', 'Throwback 🎒']
 
 const photos = [
   {

@@ -161,7 +161,7 @@ export default function Book() {
           disabled={currentIndex === 0 || isAnimating}
           aria-label="Previous page"
         >
-          ◀ Previous
+          Back 💖
         </button>
         <span className="book-page-indicator">
           {currentIndex + 1} / {total}
@@ -172,7 +172,7 @@ export default function Book() {
           disabled={currentIndex === total - 1 || isAnimating}
           aria-label="Next page"
         >
-          Next ▶
+          Next ✨
         </button>
       </div>
     </div>
