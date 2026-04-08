@@ -3,6 +3,9 @@
   grid-template-columns: 1fr 1fr;
   gap: 40px;
   align-items: start;
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
 }
 
 .timeline {

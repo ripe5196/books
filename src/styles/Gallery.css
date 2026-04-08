@@ -3,6 +3,9 @@
   padding: 30px;
   border-radius: 12px;
   box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
 }
 
 .gallery-header {
