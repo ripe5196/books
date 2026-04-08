@@ -2,10 +2,12 @@ import { useState } from 'react'
 import Book from './components/Book'
 import Timeline from './components/Timeline'
 import Gallery from './components/Gallery'
+import HiddenMessage from './components/HiddenMessage'
 import './App.css'
 
 function App() {
   const [activeTab, setActiveTab] = useState('book')
+  const [showMessage, setShowMessage] = useState(false)
 
   return (
     <div className="app">
@@ -42,8 +44,20 @@ function App() {
       </main>
 
       <footer className="footer">
-        <p>Made with ❤️ to celebrate our love story</p>
+        <p>
+          Made with ❤️ to celebrate our love story{' '}
+          <button
+            className="footer-love-btn"
+            onClick={() => setShowMessage(true)}
+            aria-label="A hidden message"
+            title="A hidden message 💌"
+          >
+            💌
+          </button>
+        </p>
       </footer>
+
+      {showMessage && <HiddenMessage onClose={() => setShowMessage(false)} />}
     </div>
   )
 }
