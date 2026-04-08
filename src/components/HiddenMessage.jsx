@@ -1,20 +1,11 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef } from 'react'
+import { useLanguage } from '../context/LanguageContext'
 import '../styles/HiddenMessage.css'
 
-const messages = [
-  "You're my favorite everything 💕",
-  "I still fall for you every day 💖",
-  "You make my world brighter ✨",
-  "Life is better with you 💗",
-  "I love you more than yesterday 💌",
-  "You're my happy place 🥰",
-  "Every moment with you matters 💞"
-]
-
 export default function HiddenMessage({ onClose }) {
-  const [message] = useState(
-    () => messages[Math.floor(Math.random() * messages.length)]
-  )
+  const { t } = useLanguage()
+  const indexRef = useRef(Math.floor(Math.random() * t.hiddenMessage.messages.length))
+  const message = t.hiddenMessage.messages[indexRef.current]
 
   useEffect(() => {
     const handleKey = (e) => {
@@ -32,7 +23,7 @@ export default function HiddenMessage({ onClose }) {
         <div className="hidden-message-hearts" aria-hidden="true">
           <span>💕</span><span>💖</span><span>💗</span><span>💓</span><span>💞</span>
         </div>
-        <button className="hidden-message-close" onClick={onClose} aria-label="Close message">
+        <button className="hidden-message-close" onClick={onClose} aria-label={t.hiddenMessage.closeLabel}>
           ✕
         </button>
       </div>
