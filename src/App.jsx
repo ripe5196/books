@@ -69,7 +69,7 @@ function App() {
         aria-label="Toggle language"
         title={language === 'en' ? 'Switch to Vietnamese' : 'Chuyển sang Tiếng Anh'}
       >
-        {language === 'en' ? 'VI' : 'EN'}
+        {language === 'en' ? '🇻🇳' : '🇺🇸'}
       </button>
     </div>
   )
