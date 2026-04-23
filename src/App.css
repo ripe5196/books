@@ -1,7 +1,7 @@
 .app {
   display: flex;
   flex-direction: column;
-  height: 100vh;
+  min-height: 100vh;
   overflow: hidden;
   background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
 }
@@ -108,6 +108,12 @@
 }
 
 @media (max-width: 768px) {
+  .app {
+    min-height: 100dvh;
+    height: auto;
+    overflow-y: auto;
+  }
+
   .header {
     padding: 8px 12px;
   }
@@ -135,5 +141,14 @@
 
   .main-content {
     padding: 8px 10px;
+    overflow: visible;
+  }
+
+  .lang-toggle-btn {
+    width: 44px;
+    height: 44px;
+    right: 12px;
+    bottom: 12px;
+    font-size: 1.35rem;
   }
 }

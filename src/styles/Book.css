@@ -88,7 +88,7 @@
 }
 
 .page-title {
-  font-family: Georgia, 'Times New Roman', serif;
+  font-family: var(--font-title);
   font-size: 1.9rem;
   color: #7a3b10;
   margin-bottom: 12px;
