@@ -389,6 +389,7 @@ export default defineConfig(({ mode }) => {
                   url: resource.secure_url || resource.url || '',
                   resource_type: resource.resource_type || resourceType,
                   created_at: resource.created_at || '',
+                  tags: Array.isArray(resource.tags) ? resource.tags : [],
                 })).filter((item) => item.url)
                 : []
             }
@@ -401,14 +402,20 @@ export default defineConfig(({ mode }) => {
                 let resources = []
 
                 if (folder) {
-                  const byAssetFolderEndpoint = `https://api.cloudinary.com/v1_1/${cloud}/resources/by_asset_folder?asset_folder=${encodeURIComponent(folder)}&resource_type=${resourceType}&max_results=${limit}`
+                  const byAssetFolderEndpoint = `https://api.cloudinary.com/v1_1/${cloud}/resources/by_asset_folder?asset_folder=${encodeURIComponent(folder)}&resource_type=${resourceType}&max_results=${limit}&tags=true`
                   resources = await fetchResources(byAssetFolderEndpoint, resourceType)
+                  if (tag) {
+                    resources = resources.filter((item) => item.tags.includes(tag))
+                  }
                 }
 
                 if (resources.length === 0 && folder) {
                   const normalizedPrefix = folder.endsWith('/') ? folder : `${folder}/`
-                  const byPrefixEndpoint = `https://api.cloudinary.com/v1_1/${cloud}/resources/${resourceType}/upload?prefix=${encodeURIComponent(normalizedPrefix)}&max_results=${limit}`
+                  const byPrefixEndpoint = `https://api.cloudinary.com/v1_1/${cloud}/resources/${resourceType}/upload?prefix=${encodeURIComponent(normalizedPrefix)}&max_results=${limit}&tags=true`
                   resources = await fetchResources(byPrefixEndpoint, resourceType)
+                  if (tag) {
+                    resources = resources.filter((item) => item.tags.includes(tag))
+                  }
                 }
 
                 if (resources.length === 0 && tag) {
