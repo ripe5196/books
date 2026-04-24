@@ -2,14 +2,23 @@ import { useState } from 'react'
 import { useLanguage } from '../context/LanguageContext'
 import '../styles/Book.css'
 
-const baseEvents = [
-  { id: 1, emoji: '💕', type: 'cover', image: 'https://picsum.photos/seed/love-story/480/580' },
-  { id: 2, emoji: '👀', image: 'https://picsum.photos/seed/first-meeting/480/580' },
-  { id: 3, emoji: '☕', image: 'https://picsum.photos/seed/first-date/480/580' },
-  { id: 4, emoji: '💍', image: 'https://picsum.photos/seed/proposal/480/580' },
-  { id: 5, emoji: '👰', image: 'https://picsum.photos/seed/wedding-day/480/580' },
-  { id: 6, emoji: '🌸', image: 'https://picsum.photos/seed/ceremony/480/580' },
-  { id: 7, emoji: '🥂', image: 'https://picsum.photos/seed/reception/480/580' },
+const DEFAULT_EMOJIS = ['💕', '👀', '☕', '💍', '👰', '🌸', '🥂', '🌙', '✨', '💞', '🎀', '🕊️', '🌹', '💫', '🤍']
+const IMAGE_SEEDS = [
+  'love-story',
+  'first-meeting',
+  'first-conversation',
+  'first-date',
+  'becoming-official',
+  'memories-together',
+  'challenges-growth',
+  'proposal-moment',
+  'engagement-period',
+  'wedding-day',
+  'future-together',
+  'golden-hour',
+  'moonlight-vows',
+  'starry-path',
+  'forever-home',
 ]
 
 function LeftPageContent({ event }) {
@@ -27,13 +36,26 @@ function LeftPageContent({ event }) {
 
 function RightPageContent({ event }) {
   if (!event) return null
+  const images = Array.isArray(event.images) ? event.images.filter(Boolean) : []
+  const hasManyImages = images.length > 1
+  const displayImages = hasManyImages ? images : [event.image || images[0]].filter(Boolean)
+
   return (
     <div className="page-content page-right-content">
-      <img
-        src={event.image}
-        alt={event.title}
-        className="page-image"
-      />
+      <div
+        className={`page-image-gallery ${displayImages.length > 1 ? 'page-image-gallery-multiple' : ''} ${
+          displayImages.length === 2 ? 'page-image-gallery-two' : ''
+        } ${displayImages.length >= 3 ? 'page-image-gallery-three-plus' : ''}`}
+      >
+        {displayImages.map((imageUrl, index) => (
+          <img
+            key={`${event.id}-${index}-${imageUrl}`}
+            src={imageUrl}
+            alt={`${event.title}${displayImages.length > 1 ? ` ${index + 1}` : ''}`}
+            className="page-image"
+          />
+        ))}
+      </div>
       <div className="page-number page-number-right">{event.id}</div>
     </div>
   )
@@ -41,10 +63,25 @@ function RightPageContent({ event }) {
 
 export default function Book() {
   const { t } = useLanguage()
-  const weddingEvents = baseEvents.map((base, i) => ({
-    ...base,
-    ...t.book.events[i],
-  }))
+  const localizedEvents = Array.isArray(t.book.events) ? t.book.events : []
+  const weddingEvents = localizedEvents.map((event, i) => {
+    const seed = IMAGE_SEEDS[i % IMAGE_SEEDS.length]
+    const fallbackImage = `https://picsum.photos/seed/${seed}-${i + 1}/480/580`
+    const images = Array.isArray(event.images)
+      ? event.images.filter(Boolean)
+      : event.image
+        ? [event.image]
+        : [fallbackImage]
+
+    return {
+      id: i + 1,
+      type: i === 0 ? 'cover' : undefined,
+      emoji: DEFAULT_EMOJIS[i % DEFAULT_EMOJIS.length],
+      image: images[0],
+      images,
+      ...event,
+    }
+  })
 
   const total = weddingEvents.length
   const [currentIndex, setCurrentIndex] = useState(0)

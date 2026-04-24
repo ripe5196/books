@@ -1,23 +1,79 @@
-import { useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useLanguage } from '../context/LanguageContext'
 import '../styles/Timeline.css'
 
-const baseDates = [
-  { id: 1, date: '2018-06-15', emoji: '👀' },
-  { id: 2, date: '2018-07-20', emoji: '☕' },
-  { id: 3, date: '2022-12-24', emoji: '💍' },
-  { id: 4, date: '2024-06-15', emoji: '👰' },
-]
+const FALLBACK_EMOJIS = ['👀', '☕', '💍', '👰', '🌸', '🥂', '🌙', '✨', '💞']
+
+const parseDateLabelToTimestamp = (dateLabel) => {
+  if (!dateLabel) return Number.POSITIVE_INFINITY
+  const raw = String(dateLabel).trim()
+  if (!raw) return Number.POSITIVE_INFINITY
+
+  const rangeStart = raw.split('→')[0].trim()
+
+  // ISO-like: yyyy-mm-dd
+  if (/^\d{4}-\d{2}-\d{2}$/.test(rangeStart)) {
+    const ts = new Date(rangeStart).getTime()
+    return Number.isNaN(ts) ? Number.POSITIVE_INFINITY : ts
+  }
+
+  // dd/mm/yyyy
+  const ddmmyyyy = rangeStart.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/)
+  if (ddmmyyyy) {
+    const [, d, m, y] = ddmmyyyy
+    const ts = new Date(Number(y), Number(m) - 1, Number(d)).getTime()
+    return Number.isNaN(ts) ? Number.POSITIVE_INFINITY : ts
+  }
+
+  // mm/yyyy
+  const mmyyyy = rangeStart.match(/^(\d{1,2})\/(\d{4})$/)
+  if (mmyyyy) {
+    const [, m, y] = mmyyyy
+    const ts = new Date(Number(y), Number(m) - 1, 1).getTime()
+    return Number.isNaN(ts) ? Number.POSITIVE_INFINITY : ts
+  }
+
+  // yyyy
+  const yyyy = rangeStart.match(/^(\d{4})$/)
+  if (yyyy) {
+    const ts = new Date(Number(yyyy[1]), 0, 1).getTime()
+    return Number.isNaN(ts) ? Number.POSITIVE_INFINITY : ts
+  }
+
+  const fallbackTs = new Date(rangeStart).getTime()
+  return Number.isNaN(fallbackTs) ? Number.POSITIVE_INFINITY : fallbackTs
+}
+
+const formatTimelineDate = (dateLabel, locale) => {
+  if (!dateLabel) return ''
+  const raw = String(dateLabel).trim()
+  if (!raw) return ''
+
+  const ts = parseDateLabelToTimestamp(raw)
+  if (!Number.isFinite(ts)) return raw
+
+  const hasRange = raw.includes('→')
+  const isIso = /^\d{4}-\d{2}-\d{2}$/.test(raw)
+  if (hasRange || !isIso) return raw
+
+  return new Date(ts).toLocaleDateString(locale, { year: 'numeric', month: 'long', day: 'numeric' })
+}
 
 export default function Timeline() {
-  const { t } = useLanguage()
+  const { language, t } = useLanguage()
 
-  const baseEvents = baseDates.map((base, i) => ({
-    ...base,
-    ...t.timeline.events[i],
+  const baseEvents = (t.book.events || []).map((bookEvent, i) => ({
+    id: `book-${i + 1}`,
+    title: bookEvent.title,
+    description: bookEvent.description,
+    date: bookEvent.date || '',
+    emoji: bookEvent.emoji || FALLBACK_EMOJIS[i % FALLBACK_EMOJIS.length],
+    source: 'book',
+    order: i,
   }))
 
   const [userEvents, setUserEvents] = useState([])
+  const [isSaving, setIsSaving] = useState(false)
 
   const [formData, setFormData] = useState({
     title: '',
@@ -26,7 +82,39 @@ export default function Timeline() {
     emoji: '💕'
   })
 
-  const allEvents = [...baseEvents, ...userEvents].sort((a, b) => new Date(a.date) - new Date(b.date))
+  useEffect(() => {
+    let cancelled = false
+    const loadUserEvents = async () => {
+      try {
+        const response = await fetch('/api/timeline/events')
+        if (!response.ok) return
+        const data = await response.json()
+        if (!cancelled && Array.isArray(data?.events)) {
+          setUserEvents(data.events)
+        }
+      } catch {
+        // Keep UI usable even if backend is unavailable.
+      }
+    }
+    loadUserEvents()
+    return () => { cancelled = true }
+  }, [])
+
+  const allEvents = useMemo(() => {
+    const merged = [...baseEvents, ...userEvents]
+    return merged.sort((a, b) => {
+      const timeA = parseDateLabelToTimestamp(a.date)
+      const timeB = parseDateLabelToTimestamp(b.date)
+      if (timeA !== timeB) return timeA - timeB
+
+      // Keep book-defined order stable when dates are equal/empty.
+      const orderA = typeof a.order === 'number' ? a.order : Number.MAX_SAFE_INTEGER
+      const orderB = typeof b.order === 'number' ? b.order : Number.MAX_SAFE_INTEGER
+      if (orderA !== orderB) return orderA - orderB
+
+      return String(a.id).localeCompare(String(b.id))
+    })
+  }, [baseEvents, userEvents])
 
   const handleInputChange = (e) => {
     const { name, value } = e.target
@@ -36,20 +124,31 @@ export default function Timeline() {
     }))
   }
 
-  const handleAddEvent = (e) => {
+  const handleAddEvent = async (e) => {
     e.preventDefault()
-    if (formData.title && formData.date) {
-      const newEvent = {
-        id: Date.now(),
-        ...formData
+    if (!formData.title || !formData.date || isSaving) return
+
+    setIsSaving(true)
+    try {
+      const response = await fetch('/api/timeline/events', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(formData),
+      })
+      if (!response.ok) return
+
+      const data = await response.json()
+      if (data?.event) {
+        setUserEvents(prev => [...prev, data.event])
       }
-      setUserEvents(prev => [...prev, newEvent])
       setFormData({
         title: '',
         date: '',
         description: '',
         emoji: '💕'
       })
+    } finally {
+      setIsSaving(false)
     }
   }
 
@@ -63,7 +162,7 @@ export default function Timeline() {
             </div>
             <div className="timeline-content">
               <h3>{event.title}</h3>
-              <p className="timeline-date">{new Date(event.date).toLocaleDateString(t.timeline.locale, { year: 'numeric', month: 'long', day: 'numeric' })}</p>
+              <p className="timeline-date">{formatTimelineDate(event.date, t.timeline.locale)}</p>
               <p className="timeline-description">{event.description}</p>
             </div>
           </div>
@@ -116,12 +215,14 @@ export default function Timeline() {
               name="emoji"
               value={formData.emoji}
               onChange={handleInputChange}
-              placeholder="Choose an emoji"
+              placeholder={language === 'vi' ? 'Chọn emoji' : 'Choose an emoji'}
               maxLength="2"
             />
           </div>
 
-          <button type="submit" className="submit-btn">{t.timeline.submitBtn}</button>
+          <button type="submit" className="submit-btn" disabled={isSaving}>
+            {isSaving ? (language === 'vi' ? 'Đang lưu...' : 'Saving...') : t.timeline.submitBtn}
+          </button>
         </form>
       </div>
     </div>

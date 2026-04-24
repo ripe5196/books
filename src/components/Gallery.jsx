@@ -1,18 +1,29 @@
-import { useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useLanguage } from '../context/LanguageContext'
 import '../styles/Gallery.css'
 
-const photoUrls = [
-  { id: 1, url: 'https://images.unsplash.com/photo-1529156069898-49953e39b3ac?w=500&h=500&fit=crop', category: 'Lives' },
-  { id: 2, url: 'https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?w=500&h=500&fit=crop', category: 'School' },
-  { id: 3, url: 'https://images.unsplash.com/photo-1519741497674-611481863552?w=500&h=500&fit=crop', category: 'Engagement' },
-  { id: 4, url: 'https://images.unsplash.com/photo-1583001931096-959e9a1a6223?w=500&h=500&fit=crop', category: 'Wedding' },
-  { id: 5, url: 'https://images.unsplash.com/photo-1511285560929-80b456fea0bc?w=500&h=500&fit=crop', category: 'Wedding' },
-  { id: 6, url: 'https://images.unsplash.com/photo-1465495976277-4387d4b0b4c6?w=500&h=500&fit=crop', category: 'Wedding' },
-  { id: 7, url: 'https://images.unsplash.com/photo-1522673607200-164d1b6ce486?w=500&h=500&fit=crop', category: 'Engagement' },
-  { id: 8, url: 'https://images.unsplash.com/photo-1503676260728-1c00da094a0b?w=500&h=500&fit=crop', category: 'School' },
-  { id: 9, url: 'https://images.unsplash.com/photo-1488646953014-85cb44e25828?w=500&h=500&fit=crop', category: 'Lives' },
-]
+const cloudName = import.meta.env.VITE_CLOUDINARY_CLOUD_NAME || 'duhxn8dxo'
+const cloudinaryFolders = {
+  Lives: import.meta.env.VITE_CLOUDINARY_FOLDER_US || 'us',
+  Engagement: import.meta.env.VITE_CLOUDINARY_FOLDER_YES || 'the-yes',
+  Wedding: import.meta.env.VITE_CLOUDINARY_FOLDER_FOREVER || 'forever',
+  School: import.meta.env.VITE_CLOUDINARY_FOLDER_THROWBACK || 'throwback',
+}
+const cloudinaryTags = {
+  Lives: import.meta.env.VITE_CLOUDINARY_TAG_US || 'us',
+  Engagement: import.meta.env.VITE_CLOUDINARY_TAG_YES || 'the-yes',
+  Wedding: import.meta.env.VITE_CLOUDINARY_TAG_FOREVER || 'forever',
+  School: import.meta.env.VITE_CLOUDINARY_TAG_THROWBACK || 'throwback',
+}
+
+const optimizeCloudinaryUrl = (url) =>
+  url.replace(/\/(image|video)\/upload\//, '/$1/upload/f_auto,q_auto/')
+
+const toCloudinaryVariant = (url, transform) =>
+  url.replace(/\/(image|video)\/upload\//, '/$1/upload/' + transform + '/')
+
+const toVideoPoster = (url) =>
+  url.replace('/video/upload/', '/video/upload/so_0,f_jpg,q_auto,c_limit,w_700/')
 
 // Map category index (from translations) to the photo category key used for filtering.
 // Index 0 = All, 1 = Lives, 2 = Engagement, 3 = Wedding, 4 = School
@@ -22,11 +33,71 @@ export default function Gallery() {
   const { t } = useLanguage()
   const [selectedImage, setSelectedImage] = useState(null)
   const [activeCategoryIndex, setActiveCategoryIndex] = useState(0)
+  const [isLoading, setIsLoading] = useState(true)
+  const [dynamicCategoryPhotos, setDynamicCategoryPhotos] = useState({
+    Lives: [],
+    Engagement: [],
+    Wedding: [],
+    School: [],
+  })
 
-  const photos = photoUrls.map((base, i) => ({
-    ...base,
-    ...t.gallery.photos[i],
-  }))
+  useEffect(() => {
+    const folderRequests = Object.entries(cloudinaryFolders).map(([category, folder]) => ({
+      category,
+      url: `/api/cloudinary/images?folder=${encodeURIComponent(folder)}&tag=${encodeURIComponent(cloudinaryTags[category])}&limit=60`,
+    }))
+
+    setIsLoading(true)
+    Promise.all(
+      folderRequests.map(async ({ category, url }) => {
+        try {
+          const response = await fetch(url)
+          if (!response.ok) return { category, photos: [] }
+          const data = await response.json()
+          const resources = Array.isArray(data?.images) ? data.images : []
+          const photos = resources.map((resource, index) => ({
+            id: `${category}-${resource.public_id || index}`,
+            category,
+            type: resource.resource_type === 'video' ? 'video' : 'image',
+            url: optimizeCloudinaryUrl(resource.url || ''),
+            thumbnailUrl: resource.resource_type === 'video'
+              ? toVideoPoster(resource.url || '')
+              : toCloudinaryVariant(resource.url || '', 'f_auto,q_auto:eco,dpr_auto,c_limit,w_700'),
+          })).filter((photo) => photo.url)
+          return { category, photos, listUrl: url }
+        } catch {
+          return { category, photos: [] }
+        }
+      }),
+    ).then((results) => {
+      const nextState = { Lives: [], Engagement: [], Wedding: [], School: [] }
+      results.forEach(({ category, photos, listUrl }) => {
+        if (photos.length === 0 && listUrl) {
+          console.warn(`No images returned for ${category}. Check Cloudinary folder/tag config for request: ${listUrl}`)
+        }
+        nextState[category] = photos
+      })
+      setDynamicCategoryPhotos(nextState)
+      setIsLoading(false)
+    })
+  }, [])
+
+  const photos = useMemo(() => {
+    const mergedPhotos = [
+      ...dynamicCategoryPhotos.Lives,
+      ...dynamicCategoryPhotos.Engagement,
+      ...dynamicCategoryPhotos.Wedding,
+      ...dynamicCategoryPhotos.School,
+    ]
+
+    return mergedPhotos.map((base, i) => ({
+      ...base,
+      ...(t.gallery.photos[i] || {
+        title: `${t.gallery.title} ${i + 1}`,
+        caption: t.gallery.subtitle,
+      }),
+    }))
+  }, [dynamicCategoryPhotos, t])
 
   const categoryKey = CATEGORY_KEYS[activeCategoryIndex]
   const filteredPhotos = categoryKey === null
@@ -54,13 +125,33 @@ export default function Gallery() {
       </div>
 
       <div className="gallery-grid">
+        {!isLoading && filteredPhotos.length === 0 && (
+          <p className="gallery-empty-state">
+            {t.gallery.emptyState}
+          </p>
+        )}
         {filteredPhotos.map((photo) => (
           <div
             key={photo.id}
             className="gallery-item"
             onClick={() => setSelectedImage(photo)}
           >
-            <img src={photo.url} alt={photo.title} />
+            {photo.type === 'video' ? (
+              <video
+                src={photo.url}
+                poster={photo.thumbnailUrl}
+                preload="metadata"
+                muted
+                playsInline
+              />
+            ) : (
+              <img
+                src={photo.thumbnailUrl || photo.url}
+                alt={photo.title}
+                loading="lazy"
+                decoding="async"
+              />
+            )}
             <div className="gallery-overlay">
               <h3>{photo.title}</h3>
               <p className="gallery-overlay-caption">{photo.caption}</p>
@@ -74,7 +165,11 @@ export default function Gallery() {
         <div className="lightbox" onClick={() => setSelectedImage(null)}>
           <div className="lightbox-content" onClick={(e) => e.stopPropagation()}>
             <button className="close-btn" onClick={() => setSelectedImage(null)}>✕</button>
-            <img src={selectedImage.url} alt={selectedImage.title} />
+            {selectedImage.type === 'video' ? (
+              <video src={selectedImage.url} controls autoPlay playsInline />
+            ) : (
+              <img src={selectedImage.url} alt={selectedImage.title} />
+            )}
             <div className="lightbox-info">
               <h2>{selectedImage.title}</h2>
               <p>{selectedImage.caption}</p>

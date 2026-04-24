@@ -82,23 +82,33 @@ src/
 
 ### Tùy chỉnh
 
-#### Thêm sự kiện vào Sách kỷ niệm
+#### Thêm sự kiện + ảnh cho Sách và Timeline (đồng bộ)
 
-Chỉnh sửa `src/components/Book.jsx` và thay đổi mảng `weddingEvents`:
+Chỉnh sửa `src/i18n/en.js` và `src/i18n/vi.js` trong `book.events`.
+Timeline sẽ tự đồng bộ theo cùng danh sách sự kiện này.
 
 ```javascript
-const weddingEvents = [
+book: {
+  events: [
   {
-    id: 1,
     title: 'Tiêu đề sự kiện',
-    date: 'Ngày tháng năm',
+    date: '2024-06-15',
     description: 'Mô tả sự kiện của bạn',
     emoji: '💕',
-    image: 'đường-dẫn-ảnh'
-  },
-  // Thêm sự kiện khác...
-]
+    image: '/images/story/cover.jpg', // 1 ảnh
+    // hoặc nhiều ảnh ở trang phải:
+    images: ['/images/story/day-1.jpg', '/images/story/day-2.jpg']
+  }
+  ]
+}
 ```
+
+#### Lưu ảnh ở đâu (miễn phí)
+
+- Cách dễ nhất: đặt ảnh vào thư mục `public/images/story/`.
+- Dùng đường dẫn trong data như: `'/images/story/ten-anh.jpg'`.
+- Khi deploy, ảnh sẽ đi kèm app và không tốn phí host riêng.
+- Nếu muốn host ngoài miễn phí, có thể dùng [Cloudinary Free](https://cloudinary.com/) hoặc [Imgur](https://imgur.com/) rồi dán URL ảnh vào `image`/`images`.
 
 #### Thêm ảnh vào Thư viện
 
@@ -156,7 +166,23 @@ cd books
 npm install
 ```
 
-3. Start the development server
+3. Configure Cloudinary (for Gallery folder loading)
+```bash
+cp .env.example .env.local
+```
+
+Fill these in `.env.local` (server-side secrets, do not commit):
+
+- `CLOUDINARY_CLOUD_NAME`
+- `CLOUDINARY_API_KEY`
+- `CLOUDINARY_API_SECRET`
+
+Optional frontend folder config:
+
+- `VITE_CLOUDINARY_FOLDER_YES` (default: `the-yes`)
+- `VITE_CLOUDINARY_FOLDER_FOREVER` (default: `forever`)
+
+4. Start the development server
 ```bash
 npm run dev
 ```
@@ -195,23 +221,33 @@ src/
 
 ### Customization
 
-#### Adding Events to the Memory Book
+#### Add Events + Images for Book and Timeline (synced)
 
-Edit `src/components/Book.jsx` and modify the `weddingEvents` array:
+Edit `src/i18n/en.js` and `src/i18n/vi.js` under `book.events`.
+The Timeline now auto-syncs from the same event list.
 
 ```javascript
-const weddingEvents = [
+book: {
+  events: [
   {
-    id: 1,
     title: 'Your Event Title',
-    date: 'Month DD, YYYY',
+    date: '2024-06-15',
     description: 'Your event description',
     emoji: '💕',
-    image: 'your-image-url'
-  },
-  // Add more events...
-]
+    image: '/images/story/cover.jpg', // single image
+    // or multiple images on right page:
+    images: ['/images/story/day-1.jpg', '/images/story/day-2.jpg']
+  }
+  ]
+}
 ```
+
+#### Where to Store Images (Free)
+
+- Easiest option: put files in `public/images/story/`.
+- Reference them in data like: `'/images/story/your-photo.jpg'`.
+- These files are bundled with your app deployment (no extra paid image host needed).
+- If you prefer external free hosting, use [Cloudinary Free](https://cloudinary.com/) or [Imgur](https://imgur.com/) and paste the image URL into `image`/`images`.
 
 #### Adding Photos to the Gallery
 
