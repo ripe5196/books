@@ -67,8 +67,6 @@ src/
 │   ├── Timeline.jsx        - Dòng thời gian các sự kiện
 │   ├── Gallery.jsx         - Thư viện ảnh với chế độ xem modal
 │   └── HiddenMessage.jsx   - Thông điệp bí mật
-├── data/
-│   └── photos.js           - Dữ liệu ảnh cho thư viện
 ├── styles/
 │   ├── Book.css            - Kiểu dáng sách
 │   ├── Timeline.css        - Kiểu dáng dòng thời gian
@@ -110,9 +108,13 @@ book: {
 - Khi deploy, ảnh sẽ đi kèm app và không tốn phí host riêng.
 - Nếu muốn host ngoài miễn phí, có thể dùng [Cloudinary Free](https://cloudinary.com/) hoặc [Imgur](https://imgur.com/) rồi dán URL ảnh vào `image`/`images`.
 
-#### Thêm ảnh vào Thư viện
+#### Thêm ảnh/video vào Thư viện
 
-Chỉnh sửa `src/data/photos.js` để thêm ảnh mới.
+Gallery hiện lấy dữ liệu động từ Cloudinary qua API backend:
+
+- `GET /api/cloudinary/images`
+- Hỗ trợ cả `image` và `video`
+- Lọc theo `folder` và fallback `tag`
 
 #### Thay đổi thông điệp bí mật
 
@@ -206,8 +208,6 @@ src/
 │   ├── Timeline.jsx        - Timeline of events
 │   ├── Gallery.jsx         - Photo gallery with modal view
 │   └── HiddenMessage.jsx   - Hidden love message popup
-├── data/
-│   └── photos.js           - Photo data for the gallery
 ├── styles/
 │   ├── Book.css            - Book styling
 │   ├── Timeline.css        - Timeline styling
@@ -249,9 +249,13 @@ book: {
 - These files are bundled with your app deployment (no extra paid image host needed).
 - If you prefer external free hosting, use [Cloudinary Free](https://cloudinary.com/) or [Imgur](https://imgur.com/) and paste the image URL into `image`/`images`.
 
-#### Adding Photos to the Gallery
+#### Adding photos/videos to Gallery
 
-Edit `src/data/photos.js` to add new photos.
+Gallery now loads media dynamically from Cloudinary through backend API:
+
+- `GET /api/cloudinary/images`
+- Supports both `image` and `video`
+- Uses folder first, then tag fallback
 
 #### Changing the Hidden Message
 
@@ -272,6 +276,79 @@ To customize colors, edit:
 - `src/styles/Book.css` - Book colors
 - `src/styles/Timeline.css` - Timeline colors
 - `src/styles/Gallery.css` - Gallery colors
+
+### Deploy to Vercel
+
+This project is ready to deploy on Vercel with API routes in `api/`.
+
+1. Push your repo to GitHub.
+2. Import project in Vercel.
+3. Set Environment Variables in Vercel Project Settings:
+   - `CLOUDINARY_CLOUD_NAME`
+   - `CLOUDINARY_API_KEY`
+   - `CLOUDINARY_API_SECRET`
+   - `VITE_CLOUDINARY_CLOUD_NAME`
+   - `VITE_CLOUDINARY_FOLDER_US`
+   - `VITE_CLOUDINARY_FOLDER_YES`
+   - `VITE_CLOUDINARY_FOLDER_FOREVER`
+   - `VITE_CLOUDINARY_FOLDER_THROWBACK`
+   - `VITE_CLOUDINARY_TAG_US`
+   - `VITE_CLOUDINARY_TAG_YES`
+   - `VITE_CLOUDINARY_TAG_FOREVER`
+   - `VITE_CLOUDINARY_TAG_THROWBACK`
+   - `SITE_ACCESS_PASSWORD`
+   - `TIMELINE_WRITE_TOKEN`
+   - `REDIS_URL` (optional but recommended)
+   - `REDIS_TOKEN` (optional, depending on provider)
+
+4. Redeploy.
+
+#### Timeline persistence (Redis)
+
+- If you add Redis REST and set:
+  - `REDIS_URL`
+  - `REDIS_TOKEN` (optional, depending on provider)
+  timeline events persist across deployments/instances.
+- If Redis is not configured, Timeline API falls back to in-memory storage (works, but not durable).
+
+#### Protect Timeline writes
+
+- You can protect write endpoints (`POST`, `PUT`, `DELETE` on `/api/timeline/events`) by setting:
+  - `TIMELINE_WRITE_TOKEN`
+- When enabled, client requests must send header:
+  - `x-timeline-token: <your_token>`
+
+#### Site access password (no hardcode)
+
+- To enable full admin mode in UI, set:
+  - `SITE_ACCESS_PASSWORD`
+- The access gate verifies password via backend route:
+  - `POST /api/auth/verify`
+- Recommended: set `SITE_ACCESS_PASSWORD` same as `TIMELINE_WRITE_TOKEN` so full-access users can also manage Timeline immediately.
+
+#### Health check endpoint
+
+- `GET /api/health` returns service status:
+  - `cloudinaryConfigured`
+  - `redisConfigured`
+  - `redisConnected`
+
+### Vercel Test Checklist
+
+After deploy, verify these quickly:
+
+1. Open site:
+   - Access gate appears.
+2. Enter wrong password:
+   - Guest mode only (Book + Gallery + music), Timeline hidden.
+3. Enter correct password (`SITE_ACCESS_PASSWORD`):
+   - Timeline tab visible.
+4. Timeline CRUD:
+   - Add / edit / delete user events works.
+5. Gallery:
+   - Both images and videos load from Cloudinary.
+6. Health:
+   - Open `/api/health` and confirm service flags are correct.
 
 ## License
 

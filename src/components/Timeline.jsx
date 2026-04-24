@@ -59,7 +59,7 @@ const formatTimelineDate = (dateLabel, locale) => {
   return new Date(ts).toLocaleDateString(locale, { year: 'numeric', month: 'long', day: 'numeric' })
 }
 
-export default function Timeline() {
+export default function Timeline({ presetWriteToken = '', hideWriteTokenInput = false }) {
   const { language, t } = useLanguage()
 
   const baseEvents = (t.book.events || []).map((bookEvent, i) => ({
@@ -73,7 +73,11 @@ export default function Timeline() {
   }))
 
   const [userEvents, setUserEvents] = useState([])
+  const [isLoading, setIsLoading] = useState(true)
   const [isSaving, setIsSaving] = useState(false)
+  const [errorMessage, setErrorMessage] = useState('')
+  const [writeToken, setWriteToken] = useState(presetWriteToken)
+  const [editingEventId, setEditingEventId] = useState(null)
 
   const [formData, setFormData] = useState({
     title: '',
@@ -86,19 +90,36 @@ export default function Timeline() {
     let cancelled = false
     const loadUserEvents = async () => {
       try {
+        setIsLoading(true)
+        setErrorMessage('')
         const response = await fetch('/api/timeline/events')
-        if (!response.ok) return
+        if (!response.ok) {
+          if (!cancelled) {
+            setErrorMessage(language === 'vi' ? 'Không thể tải timeline từ server.' : 'Unable to load timeline from server.')
+          }
+          return
+        }
         const data = await response.json()
         if (!cancelled && Array.isArray(data?.events)) {
           setUserEvents(data.events)
         }
       } catch {
-        // Keep UI usable even if backend is unavailable.
+        if (!cancelled) {
+          setErrorMessage(language === 'vi' ? 'Không thể kết nối server timeline.' : 'Unable to connect to timeline server.')
+        }
+      } finally {
+        if (!cancelled) setIsLoading(false)
       }
     }
     loadUserEvents()
     return () => { cancelled = true }
-  }, [])
+  }, [language])
+
+  useEffect(() => {
+    if (presetWriteToken) {
+      setWriteToken(presetWriteToken)
+    }
+  }, [presetWriteToken])
 
   const allEvents = useMemo(() => {
     const merged = [...baseEvents, ...userEvents]
@@ -124,37 +145,103 @@ export default function Timeline() {
     }))
   }
 
+  const resetForm = () => {
+    setFormData({
+      title: '',
+      date: '',
+      description: '',
+      emoji: '💕',
+    })
+    setEditingEventId(null)
+  }
+
   const handleAddEvent = async (e) => {
     e.preventDefault()
     if (!formData.title || !formData.date || isSaving) return
 
     setIsSaving(true)
+    setErrorMessage('')
     try {
+      const method = editingEventId ? 'PUT' : 'POST'
       const response = await fetch('/api/timeline/events', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(formData),
+        method,
+        headers: {
+          'Content-Type': 'application/json',
+          ...(writeToken ? { 'x-timeline-token': writeToken } : {}),
+        },
+        body: JSON.stringify(editingEventId ? { ...formData, id: editingEventId } : formData),
       })
-      if (!response.ok) return
+      if (!response.ok) {
+        if (response.status === 401) {
+          setErrorMessage(language === 'vi' ? 'Sai token ghi dữ liệu.' : 'Invalid write token.')
+        } else {
+          setErrorMessage(language === 'vi' ? 'Không thể lưu timeline.' : 'Unable to save timeline event.')
+        }
+        return
+      }
 
       const data = await response.json()
       if (data?.event) {
-        setUserEvents(prev => [...prev, data.event])
+        setUserEvents((prev) => {
+          if (editingEventId) {
+            return prev.map((item) => String(item.id) === String(editingEventId) ? data.event : item)
+          }
+          return [...prev, data.event]
+        })
       }
-      setFormData({
-        title: '',
-        date: '',
-        description: '',
-        emoji: '💕'
-      })
+      resetForm()
     } finally {
       setIsSaving(false)
     }
   }
 
+  const handleDeleteEvent = async (id) => {
+    if (isSaving) return
+    setIsSaving(true)
+    setErrorMessage('')
+    try {
+      const response = await fetch(`/api/timeline/events?id=${encodeURIComponent(id)}`, {
+        method: 'DELETE',
+        headers: writeToken ? { 'x-timeline-token': writeToken } : {},
+      })
+      if (!response.ok) {
+        if (response.status === 401) {
+          setErrorMessage(language === 'vi' ? 'Sai token ghi dữ liệu.' : 'Invalid write token.')
+        } else {
+          setErrorMessage(language === 'vi' ? 'Không thể xoá timeline.' : 'Unable to delete timeline event.')
+        }
+        return
+      }
+      setUserEvents((prev) => prev.filter((event) => String(event.id) !== String(id)))
+      if (String(editingEventId) === String(id)) resetForm()
+    } finally {
+      setIsSaving(false)
+    }
+  }
+
+  const startEditEvent = (event) => {
+    setEditingEventId(event.id)
+    setFormData({
+      title: event.title || '',
+      date: /^\d{4}-\d{2}-\d{2}$/.test(event.date || '') ? event.date : '',
+      description: event.description || '',
+      emoji: event.emoji || '💕',
+    })
+  }
+
   return (
     <div className="timeline-container">
       <div className="timeline">
+        {isLoading && (
+          <>
+            <div className="timeline-item timeline-item-skeleton">
+              <div className="timeline-content timeline-skeleton-card" />
+            </div>
+            <div className="timeline-item timeline-item-skeleton">
+              <div className="timeline-content timeline-skeleton-card" />
+            </div>
+          </>
+        )}
         {allEvents.map((event) => (
           <div key={event.id} className="timeline-item">
             <div className="timeline-marker">
@@ -164,6 +251,16 @@ export default function Timeline() {
               <h3>{event.title}</h3>
               <p className="timeline-date">{formatTimelineDate(event.date, t.timeline.locale)}</p>
               <p className="timeline-description">{event.description}</p>
+              {event.source === 'user' && (
+                <div className="timeline-actions">
+                  <button type="button" className="timeline-action-btn" onClick={() => startEditEvent(event)}>
+                    {language === 'vi' ? 'Sửa' : 'Edit'}
+                  </button>
+                  <button type="button" className="timeline-action-btn danger" onClick={() => handleDeleteEvent(event.id)}>
+                    {language === 'vi' ? 'Xoá' : 'Delete'}
+                  </button>
+                </div>
+              )}
             </div>
           </div>
         ))}
@@ -172,6 +269,19 @@ export default function Timeline() {
       <div className="timeline-form">
         <h2>{t.timeline.addMemoryTitle}</h2>
         <form onSubmit={handleAddEvent}>
+          {!hideWriteTokenInput && (
+            <div className="form-group">
+              <label htmlFor="writeToken">{language === 'vi' ? 'Token ghi dữ liệu (nếu bật bảo vệ)' : 'Write token (if protection enabled)'}</label>
+              <input
+                type="password"
+                id="writeToken"
+                name="writeToken"
+                value={writeToken}
+                onChange={(e) => setWriteToken(e.target.value)}
+                placeholder={language === 'vi' ? 'Nhập token' : 'Enter token'}
+              />
+            </div>
+          )}
           <div className="form-group">
             <label htmlFor="title">{t.timeline.eventTitleLabel}</label>
             <input
@@ -221,8 +331,18 @@ export default function Timeline() {
           </div>
 
           <button type="submit" className="submit-btn" disabled={isSaving}>
-            {isSaving ? (language === 'vi' ? 'Đang lưu...' : 'Saving...') : t.timeline.submitBtn}
+            {isSaving
+              ? (language === 'vi' ? 'Đang lưu...' : 'Saving...')
+              : editingEventId
+                ? (language === 'vi' ? 'Cập nhật kỷ niệm' : 'Update memory')
+                : t.timeline.submitBtn}
           </button>
+          {editingEventId && (
+            <button type="button" className="submit-btn ghost" onClick={resetForm}>
+              {language === 'vi' ? 'Huỷ chỉnh sửa' : 'Cancel edit'}
+            </button>
+          )}
+          {errorMessage && <p className="timeline-error">{errorMessage}</p>}
         </form>
       </div>
     </div>

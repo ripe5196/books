@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { useLanguage } from '../context/LanguageContext'
 import '../styles/Gallery.css'
 
-const cloudName = import.meta.env.VITE_CLOUDINARY_CLOUD_NAME || 'duhxn8dxo'
+const cloudName = import.meta.env.VITE_CLOUDINARY_CLOUD_NAME || ''
 const cloudinaryFolders = {
   Lives: import.meta.env.VITE_CLOUDINARY_FOLDER_US || 'us',
   Engagement: import.meta.env.VITE_CLOUDINARY_FOLDER_YES || 'the-yes',
@@ -42,6 +42,12 @@ export default function Gallery() {
   })
 
   useEffect(() => {
+    if (!cloudName) {
+      setDynamicCategoryPhotos({ Lives: [], Engagement: [], Wedding: [], School: [] })
+      setIsLoading(false)
+      return
+    }
+
     const folderRequests = Object.entries(cloudinaryFolders).map(([category, folder]) => ({
       category,
       url: `/api/cloudinary/images?folder=${encodeURIComponent(folder)}&tag=${encodeURIComponent(cloudinaryTags[category])}&limit=60`,

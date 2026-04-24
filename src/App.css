@@ -179,6 +179,76 @@
   height: 100%;
 }
 
+.access-gate-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.55);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 3000;
+  padding: 16px;
+}
+
+.access-gate-modal {
+  width: min(520px, 100%);
+  background: white;
+  border-radius: 14px;
+  padding: 20px;
+  box-shadow: 0 14px 40px rgba(0, 0, 0, 0.3);
+}
+
+.access-gate-modal h2 {
+  margin-bottom: 8px;
+  color: #d946a6;
+}
+
+.access-gate-modal p {
+  margin-bottom: 14px;
+  color: #4b5563;
+  line-height: 1.5;
+}
+
+.access-gate-modal input {
+  width: 100%;
+  padding: 12px;
+  border: 2px solid #e5e7eb;
+  border-radius: 10px;
+  font-size: 0.95rem;
+}
+
+.access-gate-actions {
+  margin-top: 14px;
+  display: flex;
+  gap: 10px;
+}
+
+.access-btn {
+  border: 1px solid #d1d5db;
+  background: white;
+  color: #374151;
+  padding: 10px 14px;
+  border-radius: 10px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.access-btn.primary {
+  background: linear-gradient(135deg, #d946a6 0%, #f472b6 100%);
+  color: white;
+  border: none;
+}
+
+.guest-notice {
+  margin: 0 auto 8px;
+  padding: 8px 12px;
+  background: rgba(255, 255, 255, 0.14);
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  color: #fff;
+  border-radius: 8px;
+  font-size: 0.88rem;
+}
+
 @media (max-width: 768px) {
   .app {
     min-height: 100dvh;

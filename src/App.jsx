@@ -71,6 +71,11 @@ const YOUTUBE_TRACKS = [
 
 function App() {
   const [activeTab, setActiveTab] = useState('book')
+  const [showAccessGate, setShowAccessGate] = useState(true)
+  const [accessPassword, setAccessPassword] = useState('')
+  const [isFullAccess, setIsFullAccess] = useState(false)
+  const [accessError, setAccessError] = useState('')
+  const [isCheckingAccess, setIsCheckingAccess] = useState(false)
   const [showMessage, setShowMessage] = useState(false)
   const [musicEnabled, setMusicEnabled] = useState(false)
   const [trackIndex, setTrackIndex] = useState(0)
@@ -260,8 +265,79 @@ function App() {
     player.pauseVideo()
   }, [musicEnabled, hasUserInteracted])
 
+  useEffect(() => {
+    if (!isFullAccess && activeTab === 'timeline') {
+      setActiveTab('book')
+    }
+  }, [isFullAccess, activeTab])
+
+  const handleAccessSubmit = async () => {
+    setIsCheckingAccess(true)
+    try {
+      const response = await fetch('/api/auth/verify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ password: accessPassword }),
+      })
+      const data = await response.json()
+      if (response.ok && data?.authorized) {
+        setIsFullAccess(true)
+        setShowAccessGate(false)
+        setAccessError('')
+        return
+      }
+      setIsFullAccess(false)
+      setAccessError(language === 'vi' ? 'Mật khẩu không đúng. Bạn đang ở chế độ khách.' : 'Password is incorrect. You are in guest mode.')
+      setShowAccessGate(false)
+    } catch {
+      setIsFullAccess(false)
+      setAccessError(language === 'vi' ? 'Không thể xác thực. Bạn đang ở chế độ khách.' : 'Unable to verify. You are in guest mode.')
+      setShowAccessGate(false)
+    } finally {
+      setIsCheckingAccess(false)
+    }
+  }
+
+  const continueAsGuest = () => {
+    setIsFullAccess(false)
+    setShowAccessGate(false)
+    setAccessError('')
+  }
+
   return (
     <div className="app">
+      {showAccessGate && (
+        <div className="access-gate-overlay">
+          <div className="access-gate-modal" onClick={(e) => e.stopPropagation()}>
+            <h2>{language === 'vi' ? 'Nhập mật khẩu quản trị' : 'Enter admin password'}</h2>
+            <p>
+              {language === 'vi'
+                ? 'Nhập đúng mật khẩu để mở full quyền. Sai hoặc bỏ qua sẽ ở chế độ khách (chỉ đọc Book/Gallery, nghe nhạc).'
+                : 'Enter the correct password for full access. Wrong password or skip will continue as guest (Book/Gallery/music only).'}
+            </p>
+            <input
+              type="password"
+              value={accessPassword}
+              onChange={(e) => setAccessPassword(e.target.value)}
+              placeholder={language === 'vi' ? 'Nhập mật khẩu' : 'Enter password'}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') handleAccessSubmit()
+              }}
+            />
+            <div className="access-gate-actions">
+              <button type="button" className="access-btn primary" onClick={handleAccessSubmit}>
+                {isCheckingAccess
+                  ? (language === 'vi' ? 'Đang kiểm tra...' : 'Checking...')
+                  : (language === 'vi' ? 'Xác nhận' : 'Confirm')}
+              </button>
+              <button type="button" className="access-btn" onClick={continueAsGuest}>
+                {language === 'vi' ? 'Vào chế độ khách' : 'Continue as guest'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <header className="header">
         <div className="header-text">
           <h1>{t.header.title}</h1>
@@ -276,12 +352,14 @@ function App() {
         >
           {t.nav.book}
         </button>
-        <button
-          className={`tab-button ${activeTab === 'timeline' ? 'active' : ''}`}
-          onClick={() => setActiveTab('timeline')}
-        >
-          {t.nav.timeline}
-        </button>
+        {isFullAccess && (
+          <button
+            className={`tab-button ${activeTab === 'timeline' ? 'active' : ''}`}
+            onClick={() => setActiveTab('timeline')}
+          >
+            {t.nav.timeline}
+          </button>
+        )}
         <button
           className={`tab-button ${activeTab === 'gallery' ? 'active' : ''}`}
           onClick={() => setActiveTab('gallery')}
@@ -292,9 +370,13 @@ function App() {
 
       <main className="main-content">
         {activeTab === 'book' && <Book />}
-        {activeTab === 'timeline' && <Timeline />}
+        {activeTab === 'timeline' && isFullAccess && (
+          <Timeline presetWriteToken={accessPassword} hideWriteTokenInput />
+        )}
         {activeTab === 'gallery' && <Gallery />}
       </main>
+
+      {!showAccessGate && accessError && <div className="guest-notice">{accessError}</div>}
 
       <footer className="footer">
         <p>
