@@ -113,6 +113,123 @@ const redisSetEvents = async (url, token, events) => {
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '')
 
+  const mountCloudinaryImages = (server) => {
+    server.middlewares.use('/api/cloudinary/images', async (req, res) => {
+      const requestUrl = new URL(req.url || '', 'http://localhost')
+      const folder = requestUrl.searchParams.get('folder')
+      const tag = requestUrl.searchParams.get('tag')
+      const limit = Math.min(Number(requestUrl.searchParams.get('limit') || 60), 200)
+      const allowTagFallback = (env.CLOUDINARY_ALLOW_TAG_FALLBACK || process.env.CLOUDINARY_ALLOW_TAG_FALLBACK || '').toLowerCase() === 'true'
+      const cloud = env.CLOUDINARY_CLOUD_NAME || process.env.CLOUDINARY_CLOUD_NAME
+      const apiKey = env.CLOUDINARY_API_KEY || process.env.CLOUDINARY_API_KEY
+      const apiSecret = env.CLOUDINARY_API_SECRET || process.env.CLOUDINARY_API_SECRET
+
+      if (!folder && !tag) {
+        res.statusCode = 400
+        res.setHeader('Content-Type', 'application/json')
+        res.end(JSON.stringify({ error: 'Missing "folder" or "tag" query parameter.' }))
+        return
+      }
+
+      if (!cloud || !apiKey || !apiSecret) {
+        res.statusCode = 500
+        res.setHeader('Content-Type', 'application/json')
+        res.end(JSON.stringify({
+          error: 'Missing Cloudinary server credentials. Set CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY, CLOUDINARY_API_SECRET.',
+        }))
+        return
+      }
+
+      const cacheKey = JSON.stringify({ folder: folder || '', tag: tag || '', limit })
+      const now = Date.now()
+      const cached = cloudinaryCache.get(cacheKey)
+      if (cached && Array.isArray(cached.images) && cached.images.length > 0 && now - cached.timestamp < CACHE_TTL_MS) {
+        res.statusCode = 200
+        res.setHeader('Content-Type', 'application/json')
+        res.end(JSON.stringify({ images: cached.images, cached: true }))
+        return
+      }
+
+      const authHeader = { Authorization: `Basic ${Buffer.from(`${apiKey}:${apiSecret}`).toString('base64')}` }
+      const tagMatches = (tags, wanted) => {
+        if (!wanted) return true
+        const needle = String(wanted).toLowerCase()
+        return tags.some((t) => String(t).toLowerCase() === needle)
+      }
+
+      const cloudinaryErrors = []
+      const fetchResources = async (endpoint, resourceType) => {
+        const response = await fetch(endpoint, {
+          headers: authHeader,
+        })
+        if (!response.ok) {
+          cloudinaryErrors.push({
+            endpoint,
+            resourceType,
+            status: response.status,
+            statusText: response.statusText,
+          })
+          return []
+        }
+        const data = await response.json()
+        return Array.isArray(data.resources)
+          ? data.resources.map((resource) => ({
+            public_id: resource.public_id,
+            url: resource.secure_url || resource.url || '',
+            resource_type: resource.resource_type || resourceType,
+            created_at: resource.created_at || '',
+            tags: Array.isArray(resource.tags) ? resource.tags : [],
+          })).filter((item) => item.url)
+          : []
+      }
+
+      try {
+        let media = []
+        const resourceTypes = ['image', 'video']
+
+        for (const resourceType of resourceTypes) {
+          let resources = []
+
+          if (folder) {
+            const byAssetFolderEndpoint = `https://api.cloudinary.com/v1_1/${cloud}/resources/by_asset_folder?asset_folder=${encodeURIComponent(folder)}&resource_type=${resourceType}&max_results=${limit}&tags=true`
+            resources = await fetchResources(byAssetFolderEndpoint, resourceType)
+            if (tag) {
+              resources = resources.filter((item) => tagMatches(item.tags, tag))
+              if (allowTagFallback && resources.length === 0) {
+                resources = await fetchResources(byAssetFolderEndpoint, resourceType)
+              }
+            }
+          }
+
+          if (resources.length === 0 && tag && !folder) {
+            const byTagEndpoint = `https://api.cloudinary.com/v1_1/${cloud}/resources/${resourceType}/tags/${encodeURIComponent(tag)}?max_results=${limit}`
+            resources = await fetchResources(byTagEndpoint, resourceType)
+          }
+
+          media = media.concat(resources)
+        }
+
+        media.sort((a, b) => String(b.created_at).localeCompare(String(a.created_at)))
+        if (media.length > 0) {
+          cloudinaryCache.set(cacheKey, { images: media, timestamp: now })
+        }
+
+        res.statusCode = 200
+        res.setHeader('Content-Type', 'application/json')
+        res.end(JSON.stringify({
+          images: media,
+          diagnostics: media.length === 0 && cloudinaryErrors.length > 0
+            ? { cloudinaryErrors: cloudinaryErrors.slice(0, 3) }
+            : undefined,
+        }))
+      } catch (error) {
+        res.statusCode = 500
+        res.setHeader('Content-Type', 'application/json')
+        res.end(JSON.stringify({ error: error instanceof Error ? error.message : 'Unknown server error.' }))
+      }
+    })
+  }
+
   return {
     plugins: [
       react(),
@@ -339,105 +456,10 @@ export default defineConfig(({ mode }) => {
       {
         name: 'cloudinary-images-api',
         configureServer(server) {
-          server.middlewares.use('/api/cloudinary/images', async (req, res) => {
-            const requestUrl = new URL(req.url || '', 'http://localhost')
-            const folder = requestUrl.searchParams.get('folder')
-            const tag = requestUrl.searchParams.get('tag')
-            const limit = Math.min(Number(requestUrl.searchParams.get('limit') || 60), 200)
-            const cloud = env.CLOUDINARY_CLOUD_NAME || process.env.CLOUDINARY_CLOUD_NAME
-            const apiKey = env.CLOUDINARY_API_KEY || process.env.CLOUDINARY_API_KEY
-            const apiSecret = env.CLOUDINARY_API_SECRET || process.env.CLOUDINARY_API_SECRET
-
-            if (!folder && !tag) {
-              res.statusCode = 400
-              res.setHeader('Content-Type', 'application/json')
-              res.end(JSON.stringify({ error: 'Missing "folder" or "tag" query parameter.' }))
-              return
-            }
-
-            if (!cloud || !apiKey || !apiSecret) {
-              res.statusCode = 500
-              res.setHeader('Content-Type', 'application/json')
-              res.end(JSON.stringify({
-                error: 'Missing Cloudinary server credentials. Set CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY, CLOUDINARY_API_SECRET.',
-              }))
-              return
-            }
-
-            const cacheKey = JSON.stringify({ folder: folder || '', tag: tag || '', limit })
-            const now = Date.now()
-            const cached = cloudinaryCache.get(cacheKey)
-            if (cached && now - cached.timestamp < CACHE_TTL_MS) {
-              res.statusCode = 200
-              res.setHeader('Content-Type', 'application/json')
-              res.end(JSON.stringify({ images: cached.images, cached: true }))
-              return
-            }
-
-            const authHeader = { Authorization: `Basic ${Buffer.from(`${apiKey}:${apiSecret}`).toString('base64')}` }
-            const fetchResources = async (endpoint, resourceType) => {
-              const response = await fetch(endpoint, {
-                headers: authHeader,
-              })
-              if (!response.ok) {
-                return []
-              }
-              const data = await response.json()
-              return Array.isArray(data.resources)
-                ? data.resources.map((resource) => ({
-                  public_id: resource.public_id,
-                  url: resource.secure_url || resource.url || '',
-                  resource_type: resource.resource_type || resourceType,
-                  created_at: resource.created_at || '',
-                  tags: Array.isArray(resource.tags) ? resource.tags : [],
-                })).filter((item) => item.url)
-                : []
-            }
-
-            try {
-              let media = []
-              const resourceTypes = ['image', 'video']
-
-              for (const resourceType of resourceTypes) {
-                let resources = []
-
-                if (folder) {
-                  const byAssetFolderEndpoint = `https://api.cloudinary.com/v1_1/${cloud}/resources/by_asset_folder?asset_folder=${encodeURIComponent(folder)}&resource_type=${resourceType}&max_results=${limit}&tags=true`
-                  resources = await fetchResources(byAssetFolderEndpoint, resourceType)
-                  if (tag) {
-                    resources = resources.filter((item) => item.tags.includes(tag))
-                  }
-                }
-
-                if (resources.length === 0 && folder) {
-                  const normalizedPrefix = folder.endsWith('/') ? folder : `${folder}/`
-                  const byPrefixEndpoint = `https://api.cloudinary.com/v1_1/${cloud}/resources/${resourceType}/upload?prefix=${encodeURIComponent(normalizedPrefix)}&max_results=${limit}&tags=true`
-                  resources = await fetchResources(byPrefixEndpoint, resourceType)
-                  if (tag) {
-                    resources = resources.filter((item) => item.tags.includes(tag))
-                  }
-                }
-
-                if (resources.length === 0 && tag) {
-                  const byTagEndpoint = `https://api.cloudinary.com/v1_1/${cloud}/resources/${resourceType}/tags/${encodeURIComponent(tag)}?max_results=${limit}`
-                  resources = await fetchResources(byTagEndpoint, resourceType)
-                }
-
-                media = media.concat(resources)
-              }
-
-              media.sort((a, b) => String(b.created_at).localeCompare(String(a.created_at)))
-              cloudinaryCache.set(cacheKey, { images: media, timestamp: now })
-
-              res.statusCode = 200
-              res.setHeader('Content-Type', 'application/json')
-              res.end(JSON.stringify({ images: media }))
-            } catch (error) {
-              res.statusCode = 500
-              res.setHeader('Content-Type', 'application/json')
-              res.end(JSON.stringify({ error: error instanceof Error ? error.message : 'Unknown server error.' }))
-            }
-          })
+          mountCloudinaryImages(server)
+        },
+        configurePreviewServer(server) {
+          mountCloudinaryImages(server)
         },
       },
     ],

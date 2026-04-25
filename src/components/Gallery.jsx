@@ -3,17 +3,19 @@ import { useLanguage } from '../context/LanguageContext'
 import '../styles/Gallery.css'
 
 const cloudName = import.meta.env.VITE_CLOUDINARY_CLOUD_NAME || ''
-const cloudinaryFolders = {
-  Lives: import.meta.env.VITE_CLOUDINARY_FOLDER_US || 'us',
-  Engagement: import.meta.env.VITE_CLOUDINARY_FOLDER_YES || 'the-yes',
-  Wedding: import.meta.env.VITE_CLOUDINARY_FOLDER_FOREVER || 'forever',
-  School: import.meta.env.VITE_CLOUDINARY_FOLDER_THROWBACK || 'throwback',
-}
-const cloudinaryTags = {
-  Lives: import.meta.env.VITE_CLOUDINARY_TAG_US || 'us',
-  Engagement: import.meta.env.VITE_CLOUDINARY_TAG_YES || 'the-yes',
-  Wedding: import.meta.env.VITE_CLOUDINARY_TAG_FOREVER || 'forever',
-  School: import.meta.env.VITE_CLOUDINARY_TAG_THROWBACK || 'throwback',
+const cloudinarySources = {
+  Lives: {
+    folder: import.meta.env.VITE_CLOUDINARY_FOLDER_US || 'us',
+  },
+  Engagement: {
+    folder: import.meta.env.VITE_CLOUDINARY_FOLDER_YES || 'the yes',
+  },
+  Wedding: {
+    folder: import.meta.env.VITE_CLOUDINARY_FOLDER_FOREVER || 'forever',
+  },
+  School: {
+    folder: import.meta.env.VITE_CLOUDINARY_FOLDER_THROWBACK || 'throwback',
+  },
 }
 
 const optimizeCloudinaryUrl = (url) =>
@@ -25,15 +27,69 @@ const toCloudinaryVariant = (url, transform) =>
 const toVideoPoster = (url) =>
   url.replace('/video/upload/', '/video/upload/so_0,f_jpg,q_auto,c_limit,w_700/')
 
-// Map category index (from translations) to the photo category key used for filtering.
-// Index 0 = All, 1 = Lives, 2 = Engagement, 3 = Wedding, 4 = School
-const CATEGORY_KEYS = [null, 'Lives', 'Engagement', 'Wedding', 'School']
+const cloudinaryListUrl = ({ folder, tag, limit = 60 }) => {
+  const params = new URLSearchParams()
+  params.set('limit', String(limit))
+  if (folder) params.set('folder', folder)
+  if (tag) params.set('tag', tag)
+  return `/api/cloudinary/images?${params.toString()}`
+}
+
+const mapResourcesToPhotos = (category, resources) =>
+  resources.map((resource, index) => ({
+    id: `${category}-${resource.public_id || index}`,
+    category,
+    publicId: resource.public_id || '',
+    type: resource.resource_type === 'video' ? 'video' : 'image',
+    url: optimizeCloudinaryUrl(resource.url || ''),
+    thumbnailUrl: resource.resource_type === 'video'
+      ? toVideoPoster(resource.url || '')
+      : toCloudinaryVariant(resource.url || '', 'f_auto,q_auto:eco,dpr_auto,c_limit,w_700'),
+  })).filter((photo) => photo.url)
+
+async function fetchPhotosForCategory(category, source) {
+  const tryUrl = async (url) => {
+    try {
+      const response = await fetch(url)
+      if (!response.ok) return { photos: [], listUrl: url }
+      const data = await response.json()
+      const resources = Array.isArray(data?.images) ? data.images : []
+      return {
+        photos: mapResourcesToPhotos(category, resources),
+        listUrl: url,
+        diagnostics: data?.diagnostics,
+      }
+    } catch {
+      return { photos: [], listUrl: url }
+    }
+  }
+
+  const primary = cloudinaryListUrl({ folder: source.folder })
+  const { photos, listUrl, diagnostics } = await tryUrl(primary)
+  return { category, photos, listUrl, diagnostics }
+}
+
+const CATEGORY_DEFINITIONS = [
+  { id: 'all', key: null },
+  { id: 'lives', key: 'Lives' },
+  { id: 'engagement', key: 'Engagement' },
+  { id: 'wedding', key: 'Wedding' },
+  { id: 'school', key: 'School' },
+]
+
+const TAB_ID_TO_PHOTO_BUCKET = {
+  lives: 'Lives',
+  engagement: 'Engagement',
+  wedding: 'Wedding',
+  school: 'School',
+}
 
 export default function Gallery() {
   const { t } = useLanguage()
   const [selectedImage, setSelectedImage] = useState(null)
-  const [activeCategoryIndex, setActiveCategoryIndex] = useState(0)
+  const [activeCategoryId, setActiveCategoryId] = useState('all')
   const [isLoading, setIsLoading] = useState(true)
+  const [galleryError, setGalleryError] = useState('')
   const [dynamicCategoryPhotos, setDynamicCategoryPhotos] = useState({
     Lives: [],
     Engagement: [],
@@ -48,38 +104,20 @@ export default function Gallery() {
       return
     }
 
-    const folderRequests = Object.entries(cloudinaryFolders).map(([category, folder]) => ({
-      category,
-      url: `/api/cloudinary/images?folder=${encodeURIComponent(folder)}&tag=${encodeURIComponent(cloudinaryTags[category])}&limit=60`,
-    }))
-
     setIsLoading(true)
+    setGalleryError('')
     Promise.all(
-      folderRequests.map(async ({ category, url }) => {
-        try {
-          const response = await fetch(url)
-          if (!response.ok) return { category, photos: [] }
-          const data = await response.json()
-          const resources = Array.isArray(data?.images) ? data.images : []
-          const photos = resources.map((resource, index) => ({
-            id: `${category}-${resource.public_id || index}`,
-            category,
-            type: resource.resource_type === 'video' ? 'video' : 'image',
-            url: optimizeCloudinaryUrl(resource.url || ''),
-            thumbnailUrl: resource.resource_type === 'video'
-              ? toVideoPoster(resource.url || '')
-              : toCloudinaryVariant(resource.url || '', 'f_auto,q_auto:eco,dpr_auto,c_limit,w_700'),
-          })).filter((photo) => photo.url)
-          return { category, photos, listUrl: url }
-        } catch {
-          return { category, photos: [] }
-        }
-      }),
+      Object.entries(cloudinarySources).map(([category, source]) =>
+        fetchPhotosForCategory(category, source),
+      ),
     ).then((results) => {
       const nextState = { Lives: [], Engagement: [], Wedding: [], School: [] }
-      results.forEach(({ category, photos, listUrl }) => {
+      results.forEach(({ category, photos, listUrl, diagnostics }) => {
         if (photos.length === 0 && listUrl) {
           console.warn(`No images returned for ${category}. Check Cloudinary folder/tag config for request: ${listUrl}`)
+        }
+        if (diagnostics?.cloudinaryErrors?.[0]?.status === 420) {
+          setGalleryError('Cloudinary API đang bị rate limit (420). Vui lòng đợi 1-2 phút rồi tải lại trang.')
         }
         nextState[category] = photos
       })
@@ -88,27 +126,66 @@ export default function Gallery() {
     })
   }, [])
 
-  const photos = useMemo(() => {
-    const mergedPhotos = [
-      ...dynamicCategoryPhotos.Lives,
-      ...dynamicCategoryPhotos.Engagement,
-      ...dynamicCategoryPhotos.Wedding,
-      ...dynamicCategoryPhotos.School,
-    ]
-
-    return mergedPhotos.map((base, i) => ({
+  const photosByCategory = useMemo(() => ({
+    Lives: dynamicCategoryPhotos.Lives.map((base, i) => ({
       ...base,
       ...(t.gallery.photos[i] || {
         title: `${t.gallery.title} ${i + 1}`,
         caption: t.gallery.subtitle,
       }),
-    }))
-  }, [dynamicCategoryPhotos, t])
+    })),
+    Engagement: dynamicCategoryPhotos.Engagement.map((base, i) => ({
+      ...base,
+      ...(t.gallery.photos[i] || {
+        title: `${t.gallery.title} ${i + 1}`,
+        caption: t.gallery.subtitle,
+      }),
+    })),
+    Wedding: dynamicCategoryPhotos.Wedding.map((base, i) => ({
+      ...base,
+      ...(t.gallery.photos[i] || {
+        title: `${t.gallery.title} ${i + 1}`,
+        caption: t.gallery.subtitle,
+      }),
+    })),
+    School: dynamicCategoryPhotos.School.map((base, i) => ({
+      ...base,
+      ...(t.gallery.photos[i] || {
+        title: `${t.gallery.title} ${i + 1}`,
+        caption: t.gallery.subtitle,
+      }),
+    })),
+  }), [dynamicCategoryPhotos, t])
 
-  const categoryKey = CATEGORY_KEYS[activeCategoryIndex]
-  const filteredPhotos = categoryKey === null
-    ? photos
-    : photos.filter((p) => p.category === categoryKey)
+  const galleryCategories = useMemo(() => (
+    CATEGORY_DEFINITIONS.map((category, index) => ({
+      ...category,
+      label: t.gallery.categories[index] || t.gallery.categories[0] || 'All',
+    }))
+  ), [t.gallery.categories])
+
+  const categoryKey =
+    activeCategoryId === 'all' ? null : TAB_ID_TO_PHOTO_BUCKET[activeCategoryId] ?? null
+
+  const filteredPhotos = useMemo(() => {
+    if (categoryKey === null) {
+      return [
+        ...photosByCategory.Lives,
+        ...photosByCategory.Engagement,
+        ...photosByCategory.Wedding,
+        ...photosByCategory.School,
+      ]
+    }
+    const bucket = photosByCategory[categoryKey] || []
+    return bucket.filter((photo) => photo.category === categoryKey)
+  }, [categoryKey, photosByCategory])
+
+  useEffect(() => {
+    if (activeCategoryId === 'all') return
+    if (!TAB_ID_TO_PHOTO_BUCKET[activeCategoryId]) {
+      setActiveCategoryId('all')
+    }
+  }, [activeCategoryId])
 
   return (
     <div className="gallery-container">
@@ -119,13 +196,13 @@ export default function Gallery() {
       </div>
 
       <div className="gallery-categories">
-        {t.gallery.categories.map((cat, index) => (
+        {galleryCategories.map((category) => (
           <button
-            key={cat}
-            className={`category-btn ${activeCategoryIndex === index ? 'active' : ''}`}
-            onClick={() => setActiveCategoryIndex(index)}
+            key={category.id}
+            className={`category-btn ${activeCategoryId === category.id ? 'active' : ''}`}
+            onClick={() => setActiveCategoryId(category.id)}
           >
-            {cat}
+            {category.label}
           </button>
         ))}
       </div>
@@ -133,7 +210,7 @@ export default function Gallery() {
       <div className="gallery-grid">
         {!isLoading && filteredPhotos.length === 0 && (
           <p className="gallery-empty-state">
-            {t.gallery.emptyState}
+            {galleryError || t.gallery.emptyState}
           </p>
         )}
         {filteredPhotos.map((photo) => (
